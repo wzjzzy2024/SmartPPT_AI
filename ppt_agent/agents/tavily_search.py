@@ -9,8 +9,9 @@ from collections import OrderedDict
 
 from tavily import TavilyClient
 
+import search_config
+
 from search_config import (
-    SEARCH_ENABLED,
     TAVILY_API_KEY,
     TAVILY_MAX_RESULTS,
     TAVILY_SUMMARY_MAX_CHARS,
@@ -83,7 +84,7 @@ def web_search(query: str, max_results: int = None) -> dict:
             "error": str | None,
         }
     """
-    if not SEARCH_ENABLED:
+    if not search_config.SEARCH_ENABLED:
         return _empty_result(query, "联网搜索已关闭")
 
     if max_results is None:
@@ -106,6 +107,7 @@ def web_search(query: str, max_results: int = None) -> dict:
             max_results=max_results,
             search_depth="basic",
             include_answer=False,
+            timeout=TAVILY_SEARCH_TIMEOUT,
         )
         raw_results = response.get("results", [])
         results = []

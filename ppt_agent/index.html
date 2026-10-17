@@ -83,7 +83,7 @@ textarea.markdown-input::placeholder{color:#aab}
 
 <div class="header">
   <h1>SmartPPT-AI</h1>
-  <p>多LLM协作 · 智能规划 · 专业排版 · 自动配图</p>
+  <p>GLM 驱动 · 智能规划 · 专业排版 · 自动配图</p>
 </div>
 
 <div class="card">
@@ -127,9 +127,10 @@ textarea.markdown-input::placeholder{color:#aab}
     <div class="steps">
       <div class="step" id="s1"><span class="step-icon">1</span><span class="step-text">规划大纲</span><span class="spinner"></span></div>
       <div class="step" id="s2"><span class="step-icon">2</span><span class="step-text">扩写内容</span><span class="spinner"></span></div>
-      <div class="step" id="s3"><span class="step-icon">3</span><span class="step-text">翻译关键词</span><span class="spinner"></span></div>
-      <div class="step" id="s4"><span class="step-icon">4</span><span class="step-text">获取图片</span><span class="spinner"></span></div>
-      <div class="step" id="s5"><span class="step-icon">5</span><span class="step-text">渲染PPT</span><span class="spinner"></span></div>
+      <div class="step" id="s3"><span class="step-icon">3</span><span class="step-text">生成视觉提示词</span><span class="spinner"></span></div>
+      <div class="step" id="s4"><span class="step-icon">4</span><span class="step-text">获取并判定图片</span><span class="spinner"></span></div>
+      <div class="step" id="s5"><span class="step-icon">5</span><span class="step-text">生成数据图表</span><span class="spinner"></span></div>
+      <div class="step" id="s6"><span class="step-icon">6</span><span class="step-text">渲染PPT</span><span class="spinner"></span></div>
     </div>
   </div>
 
@@ -235,7 +236,7 @@ function startGenerate(){
 }
 
 function resetSteps(){
-  for(let i=1;i<=5;i++){
+  for(let i=1;i<=6;i++){
     const el = $('s'+i);
     el.className = 'step';
     el.querySelector('.spinner').style.display = 'none';
@@ -290,13 +291,17 @@ function listenProgress(taskId){
   };
 }
 
+// Pipeline steps are not contiguous (1.5, 4.5); each maps to a UI row.
+var STEP_ROWS = {1:1, 1.5:2, 2:2, 3:3, 4:4, 4.5:5, 5:6};
+
 function updateStep(n, msg){
-  for(let i=1;i<=5;i++){
+  var row = STEP_ROWS[n] || Math.round(n);
+  for(let i=1;i<=6;i++){
     const el = $('s'+i);
-    if(i < n){
+    if(i < row){
       el.className = 'step done';
       el.querySelector('.spinner').style.display = 'none';
-    }else if(i === n){
+    }else if(i === row){
       el.className = 'step active';
       el.querySelector('.spinner').style.display = 'block';
     }else{
@@ -304,11 +309,11 @@ function updateStep(n, msg){
       el.querySelector('.spinner').style.display = 'none';
     }
   }
-  if(msg) $('s'+n).querySelector('.step-text').textContent = msg;
+  if(msg && $('s'+row)) $('s'+row).querySelector('.step-text').textContent = msg;
 }
 
 function finishAllSteps(){
-  for(let i=1;i<=5;i++){
+  for(let i=1;i<=6;i++){
     const el = $('s'+i);
     el.className = 'step done';
     el.querySelector('.spinner').style.display = 'none';
@@ -316,7 +321,7 @@ function finishAllSteps(){
 }
 
 function markError(n){
-  for(let i=1;i<=5;i++){
+  for(let i=1;i<=6;i++){
     if(i === n) $('s'+i).className = 'step error';
   }
 }

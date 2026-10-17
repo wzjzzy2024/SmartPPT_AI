@@ -1,5 +1,5 @@
 """
-Image Fetcher Agent: keywords -> BytesIO image from Unsplash.
+Image Fetcher Agent: visual search keywords -> image bytes + metadata from Unsplash.
 Tries multiple keywords (specific -> broad) until one returns results.
 Thread-safe cache for concurrent access.
 """
@@ -16,16 +16,20 @@ UNSPLASH_BASE = "https://api.unsplash.com"
 HEADERS = {"Authorization": f"Client-ID {UNSPLASH_KEY}"} if UNSPLASH_KEY else {}
 
 MAX_CACHE = 50
-_cache: OrderedDict[str, BytesIO | None] = OrderedDict()
+_cache: OrderedDict[str, dict | None] = OrderedDict()
 _cache_lock = threading.Lock()
 
 
-def fetch_image_bytes(keyword, topic="") -> BytesIO | None:
-    """Search Unsplash with progressive keyword fallback.
+def fetch_image(keyword, topic="") -> dict | None:
+    """Search Unsplash, return a dict with bytes + author metadata, or None.
 
     Args:
         keyword: A single keyword string or a list of keywords (specific -> broad).
         topic: The main PPT topic (English), used as a last-resort fallback.
+
+    Returns:
+        {"bytes": BytesIO, "alt_description": str, "description": str,
+         "url": str, "width": int|None, "height": int|None} or None
     """
     if not UNSPLASH_KEY:
         logger.warning("UNSPLASH_ACCESS_KEY not configured, skipping image fetch")
@@ -48,23 +52,29 @@ def fetch_image_bytes(keyword, topic="") -> BytesIO | None:
             cached = _cache[cache_key]
             _cache.move_to_end(cache_key)
             if cached is not None:
-                cached.seek(0)
+                cached["bytes"].seek(0)
             return cached
 
     for query in keywords:
         if not query:
             continue
-        bio = _search_unsplash(query)
-        if bio is not None:
+        meta = _search_unsplash(query)
+        if meta is not None:
             with _cache_lock:
-                _cache[cache_key] = bio
+                _cache[cache_key] = meta
                 _evict_cache()
-            return bio
+            return meta
 
     with _cache_lock:
         _cache[cache_key] = None
         _evict_cache()
     return None
+
+
+def fetch_image_bytes(keyword, topic="") -> BytesIO | None:
+    """Backward-compatible wrapper returning only the image bytes."""
+    meta = fetch_image(keyword, topic)
+    return meta["bytes"] if meta else None
 
 
 def _evict_cache():
@@ -73,13 +83,18 @@ def _evict_cache():
         _cache.popitem(last=False)
 
 
-def _search_unsplash(query: str) -> BytesIO | None:
-    """Search Unsplash for a single query, return BytesIO or None."""
+def _search_unsplash(query: str) -> dict | None:
+    """Search Unsplash for a single query, return image dict or None."""
     try:
         resp = requests.get(
             f"{UNSPLASH_BASE}/search/photos",
             headers=HEADERS,
-            params={"query": query, "orientation": "landscape", "per_page": 5},
+            params={
+                "query": query,
+                "orientation": "landscape",
+                "per_page": 5,
+                "order_by": "relevant",
+            },
             timeout=10,
         )
         if resp.status_code == 403:
@@ -94,12 +109,20 @@ def _search_unsplash(query: str) -> BytesIO | None:
             logger.info("No results for '%s'", query)
             return None
 
-        image_url = results[0]["urls"]["regular"]
+        result = results[0]
+        image_url = result["urls"]["regular"]
         img_resp = requests.get(image_url, timeout=15)
         img_resp.raise_for_status()
-        bio = BytesIO(img_resp.content)
+        meta = {
+            "bytes": BytesIO(img_resp.content),
+            "alt_description": (result.get("alt_description") or "").strip(),
+            "description": (result.get("description") or "").strip(),
+            "url": image_url,
+            "width": result.get("width"),
+            "height": result.get("height"),
+        }
         logger.info("Image found: '%s' (%d bytes)", query, len(img_resp.content))
-        return bio
+        return meta
 
     except requests.exceptions.Timeout:
         logger.warning("Timeout fetching image for '%s'", query)

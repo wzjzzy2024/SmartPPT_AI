@@ -1,7 +1,10 @@
 """
 Markdown / plain-text parser.
 Reads a Markdown outline or pasted text, identifies heading levels,
-auto-paginates by H2, and outputs structured slide data.
+auto-paginates by H2, and outputs page_type-tagged slide data.
+
+Structure (cover/toc/summary/thanks) is completed later by
+utils.outline.normalize_outline; this module only tags what it sees.
 """
 import re
 import logging
@@ -18,23 +21,42 @@ def _is_markdown(text: str) -> bool:
     return False
 
 
+def _content_page(title: str, section_id, section_title: str) -> dict:
+    return {
+        "page_type": "content",
+        "title": title,
+        "subtitle": "",
+        "section_id": section_id,
+        "section_title": section_title,
+        "display_points": [],
+        "layout_id": "text_focus",
+        "needs_image": False,
+        "image_topic": "",
+        "key_points": [],
+        "logic_role": "内容页",
+    }
+
+
 def parse_markdown(text: str) -> list[dict]:
-    """Parse Markdown text into a list of slide dicts.
+    """Parse Markdown text into a list of page dicts.
 
     Rules:
-      - H1 (#)  -> title_hero page (only the first H1)
-      - H2 (##) -> new page start
-      - H3 (###) -> bullet points under current H2
-      - Plain text lines -> auto-paginated into pages
+      - First H1       -> cover page
+      - Later H1       -> section divider + new section context
+      - H2             -> new content page under the current section
+      - H3 / plain text -> bullet points under the current content page
 
     Returns:
-        list of dicts with keys: title, display_points, layout_id,
-        needs_image, image_topic, key_points, logic_role
+        list of page dicts (page_type, title, subtitle, section_id,
+        section_title, key_points, display_points, layout_id, needs_image,
+        image_topic, logic_role)
     """
     lines = text.strip().splitlines()
     pages: list[dict] = []
     current_page = None
     first_h1 = True
+    section_id = 0
+    section_title = "主要内容"
 
     for line in lines:
         stripped = line.strip()
@@ -47,11 +69,16 @@ def parse_markdown(text: str) -> list[dict]:
 
         if h1_match:
             title = h1_match.group(1).strip()[:50]
+            if current_page:
+                pages.append(current_page)
+                current_page = None
             if first_h1:
                 pages.append({
+                    "page_type": "cover",
                     "title": title,
+                    "subtitle": "",
                     "display_points": [],
-                    "layout_id": "title_hero",
+                    "layout_id": "cover",
                     "needs_image": False,
                     "image_topic": "",
                     "key_points": [],
@@ -59,75 +86,53 @@ def parse_markdown(text: str) -> list[dict]:
                 })
                 first_h1 = False
             else:
-                if current_page:
-                    pages.append(current_page)
-                current_page = {
+                section_id += 1
+                section_title = title
+                pages.append({
+                    "page_type": "section",
                     "title": title,
+                    "subtitle": "",
+                    "section_id": section_id,
+                    "section_title": section_title,
                     "display_points": [],
                     "layout_id": "section_divider",
                     "needs_image": False,
                     "image_topic": "",
                     "key_points": [],
                     "logic_role": "章节分隔",
-                }
+                })
         elif h2_match:
             if current_page:
                 pages.append(current_page)
-            title = h2_match.group(1).strip()[:50]
-            current_page = {
-                "title": title,
-                "display_points": [],
-                "layout_id": "text_focus",
-                "needs_image": False,
-                "image_topic": "",
-                "key_points": [],
-                "logic_role": "内容页",
-            }
+            current_page = _content_page(
+                h2_match.group(1).strip()[:50], section_id, section_title
+            )
         elif h3_match:
             point = h3_match.group(1).strip()
             if current_page is None:
-                current_page = {
-                    "title": point[:50],
-                    "display_points": [],
-                    "layout_id": "text_focus",
-                    "needs_image": False,
-                    "image_topic": "",
-                    "key_points": [],
-                    "logic_role": "内容页",
-                }
-            else:
-                current_page["display_points"].append(point)
-                current_page["key_points"].append(point)
+                current_page = _content_page(point[:50], section_id, section_title)
+            current_page["display_points"].append(point)
+            current_page["key_points"].append(point)
         else:
             if current_page is None:
-                current_page = {
-                    "title": stripped[:50],
-                    "display_points": [],
-                    "layout_id": "text_focus",
-                    "needs_image": False,
-                    "image_topic": "",
-                    "key_points": [],
-                    "logic_role": "内容页",
-                }
+                current_page = _content_page(stripped[:50], section_id, section_title)
             current_page["display_points"].append(stripped)
             current_page["key_points"].append(stripped)
 
     if current_page:
         pages.append(current_page)
 
-    # Post-process: fill defaults and infer layout
+    # Fill defaults and auto-assign image layouts for sparse content pages.
     for i, page in enumerate(pages):
         page.setdefault("index", i + 1)
         page.setdefault("speaker_notes", "")
         page.setdefault("needs_image", False)
         page.setdefault("image_topic", "")
 
-        if page["layout_id"] not in ("title_hero", "section_divider"):
+        if page["page_type"] == "content":
             if not page["image_topic"]:
                 page["image_topic"] = page["title"]
-            # Only auto-switch to content_with_image when needs_image
-            # was NOT explicitly set by the caller
-            if page["needs_image"] is False and len(page["display_points"]) <= 3:
+            if not page["needs_image"] and len(page["display_points"]) <= 3:
                 page["layout_id"] = "content_with_image"
                 page["needs_image"] = True
 
@@ -166,15 +171,10 @@ def plain_text_to_slides(text: str) -> list[dict]:
     for chunk_start in range(0, len(points), PAGE_SIZE):
         chunk = points[chunk_start:chunk_start + PAGE_SIZE]
         title = chunk[0][:50] if chunk[0] else "内容页"
-        pages.append({
-            "title": title,
-            "display_points": chunk,
-            "layout_id": "text_focus",
-            "needs_image": False,
-            "image_topic": "",
-            "key_points": chunk,
-            "logic_role": "内容页",
-        })
+        page = _content_page(title, 1, "主要内容")
+        page["display_points"] = chunk
+        page["key_points"] = chunk
+        pages.append(page)
 
     for i, page in enumerate(pages):
         page["index"] = i + 1

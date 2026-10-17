@@ -8,7 +8,6 @@ import asyncio
 import contextlib
 import json
 import logging
-import os
 import queue
 import re
 import threading
@@ -225,6 +224,7 @@ async def api_progress(task_id: str):
                     "message": t["message"],
                     "status": t["status"],
                 }
+            last_rank = _step_rank(snap["step"])
             yield _sse_msg({"step": snap["step"], "message": snap["message"]})
             if snap["status"] in ("done", "error"):
                 return
@@ -239,6 +239,13 @@ async def api_progress(task_id: str):
                         if t["status"] in ("done", "error"):
                             break
                     continue
+
+                # A late SSE client receives an up-to-date snapshot first;
+                # skip queued events that would move the progress backwards.
+                rank = _step_rank(item.get("step"))
+                if rank < last_rank:
+                    continue
+                last_rank = rank
 
                 yield _sse_msg(item)
                 if item.get("step") in ("done", "error"):
@@ -277,6 +284,19 @@ async def api_download(task_id: str):
 
 def _sse_msg(data: dict) -> str:
     return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+_STEP_RANK = {0: 0, 0.5: 1, 1: 2, 1.5: 3, 2: 4, 3: 5, 4: 6, 4.5: 7, 5: 8}
+
+
+def _step_rank(step) -> int:
+    """Monotonic rank so an SSE client never sees progress move backwards."""
+    if step in ("done", "error"):
+        return 99
+    try:
+        return _STEP_RANK.get(float(step), 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 if __name__ == "__main__":

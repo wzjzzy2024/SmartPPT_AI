@@ -1,4 +1,4 @@
-"""AI Agent 层: planner, writer, translator, image_fetcher"""
+"""AI Agent 层: planner, writer, translator, image_fetcher, image_judge, tavily_search"""
 
 from .planner import plan
 from .writer import write_slide, write_slide_safe, validate_and_retry

@@ -60,6 +60,56 @@ try:
 except (ValueError, TypeError):
     LLM_TIMEOUT = 60
 
+# -- V2 outline / layout data model -------------------------------
+# page_type drives structure; layout_id drives visual composition.
+PAGE_TYPES = {"cover", "toc", "section", "content", "summary", "thanks"}
+
+# page_type -> allowed layout ids. A layout outside this map is invalid.
+PAGE_TYPE_LAYOUTS = {
+    "cover":   {"cover"},
+    "toc":     {"toc"},
+    "section": {"section_divider"},
+    "content": {"content_with_image", "two_column", "icon_grid_3",
+                "icon_grid_4", "stat_callout", "quote_highlight",
+                "text_focus", "content_decor"},
+    "summary": {"stat_callout", "two_column", "text_focus"},
+    "thanks":  {"thanks"},
+}
+
+# Fallback layout when a page's layout_id doesn't match its page_type.
+DEFAULT_LAYOUTS = {
+    "cover":   "cover",
+    "toc":     "toc",
+    "section": "section_divider",
+    "content": "text_focus",
+    "summary": "stat_callout",
+    "thanks":  "thanks",
+}
+
+# Only this layout accepts a downloaded image.
+IMAGE_LAYOUTS = {"content_with_image"}
+
+# Hard cap on total slide count (soft cap of 26 lives in the planner prompt).
+MAX_SLIDES = 30
+
+# Minimum semantic relevance score for keeping a candidate image (0-100).
+IMAGE_MIN_SCORE = 60
+
+# -- V2.1 charts / icons -------------------------------------------
+# data_chart is intentionally absent from PAGE_TYPE_LAYOUTS: only the
+# pipeline may convert a content page to a chart, never the LLM.
+CHART_MIN_SAME_UNIT_POINTS = 2
+CHART_MAX_POINTS = 8
+CHART_MAX_LABEL_LEN = 12
+CHART_DPI = 200
+ICON_SCALE = 16.0  # 16px viewBox * 16 = 256px raster (crisp at ~300 DPI)
+
+# CJK fonts for matplotlib chart labels (first existing readable wins).
+CJK_FONT_CANDIDATES = [
+    "/mnt/c/Windows/Fonts/simhei.ttf",
+    "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+]
+
 
 def validate_keys(required: list[str] | None = None) -> list[str]:
     """Check that required API keys are set. Returns list of missing key names."""

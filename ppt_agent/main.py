@@ -10,7 +10,6 @@ from pathlib import Path
 
 from config import check_startup_keys
 from pipeline import generate_ppt
-from search_config import SEARCH_ENABLED
 import search_config
 
 logger = logging.getLogger("smartppt.main")
