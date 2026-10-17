@@ -92,6 +92,7 @@ def plan(topic: str, web_context: str = "") -> dict:
                 ],
                 temperature=0.3,
                 max_tokens=16384,
+                response_format={"type": "json_object"},
             )
             if not response.choices:
                 raise ValueError("Empty response.choices from GLM planner")

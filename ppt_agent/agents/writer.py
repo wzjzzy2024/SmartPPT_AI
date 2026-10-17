@@ -56,6 +56,7 @@ def write_slide(slide: dict) -> dict:
                 ],
                 temperature=0.6,
                 max_tokens=4096,
+                response_format={"type": "json_object"},
             )
             if not response.choices:
                 raise ValueError("Empty response.choices from GLM writer")
