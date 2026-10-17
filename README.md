@@ -262,6 +262,10 @@ Windows 下若文件正被 PowerPoint 打开，程序会自动追加时间戳另
 
 任何搜索异常都会静默降级为纯 AI 生成，不会中断主流程。
 
+## 📜 License
+
+本项目采用 [MIT License](LICENSE) 开源。
+
 ## 📄 第三方资源与许可
 
 - 图标来自 [Bootstrap Icons v1.11.3](https://icons.getbootstrap.com/)，MIT License，全文见 `ppt_agent/assets/icons/LICENSE.txt`。
