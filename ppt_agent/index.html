@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>SmartPPT-AI · 智能PPT生成系统</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;background:#f0f4f8;color:#1c2833;min-height:100vh;display:flex;flex-direction:column}
+.header{background:linear-gradient(135deg,#1A3A5C 0%,#2471A3 100%);color:#fff;padding:28px 20px;text-align:center}
+.header h1{font-size:26px;font-weight:700;letter-spacing:1px}
+.header p{font-size:13px;opacity:.75;margin-top:6px}
+.card{background:#fff;border-radius:12px;box-shadow:0 2px 16px rgba(26,58,92,.08);padding:32px 28px;margin:24px auto;max-width:640px;width:calc(100% - 32px)}
+
+/* Input area */
+.input-area{display:flex;flex-direction:column;gap:10px}
+.input-row{display:flex;gap:10px}
+.input-row input{flex:1;padding:12px 16px;border:2px solid #d6eaf8;border-radius:8px;font-size:15px;outline:none;transition:border-color .2s;font-family:inherit}
+.input-row input:focus{border-color:#2471A3}
+.input-row input::placeholder{color:#aab}
+
+textarea.markdown-input{width:100%;min-height:120px;padding:12px 16px;border:2px solid #d6eaf8;border-radius:8px;font-size:14px;outline:none;transition:border-color .2s;font-family:"Consolas","Courier New",monospace;resize:vertical;line-height:1.5}
+textarea.markdown-input:focus{border-color:#2471A3}
+textarea.markdown-input::placeholder{color:#aab}
+
+/* Theme selector */
+.theme-row{display:flex;align-items:center;gap:10px;margin-top:4px}
+.theme-row label{font-size:13px;color:#666;white-space:nowrap}
+.theme-row select{padding:8px 12px;border:2px solid #d6eaf8;border-radius:8px;font-size:14px;outline:none;background:#fff;cursor:pointer;font-family:inherit}
+.theme-row select:focus{border-color:#2471A3}
+.theme-swatch{display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid #ccc;vertical-align:middle;margin-left:4px}
+
+/* Buttons */
+.btn{padding:12px 28px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit;white-space:nowrap}
+.btn-primary{background:#1A3A5C;color:#fff}
+.btn-primary:hover{background:#2471A3;transform:translateY(-1px)}
+.btn-primary:disabled{background:#bcc;cursor:not-allowed;transform:none}
+.btn-secondary{background:#f0f4f8;color:#1A3A5C;border:2px solid #d6eaf8}
+.btn-secondary:hover{background:#d6eaf8}
+.btn-download{background:#117A65;color:#fff;display:none;text-decoration:none;text-align:center}
+.btn-download:hover{background:#0e6654;transform:translateY(-1px)}
+
+/* Mode tabs */
+.mode-tabs{display:flex;gap:0;margin-bottom:12px}
+.mode-tab{flex:1;padding:10px;text-align:center;cursor:pointer;border:2px solid #d6eaf8;background:#f8fafc;font-size:14px;font-weight:500;color:#666;transition:all .2s}
+.mode-tab:first-child{border-radius:8px 0 0 8px}
+.mode-tab:last-child{border-radius:0 8px 8px 0}
+.mode-tab.active{background:#1A3A5C;color:#fff;border-color:#1A3A5C}
+.mode-tab:hover:not(.active){background:#e8f0fe}
+
+.input-panel{display:none}
+.input-panel.active{display:block}
+
+/* File upload */
+.upload-area{display:flex;gap:10px;align-items:center}
+.upload-area input[type="file"]{display:none}
+.upload-label{padding:10px 16px;border:2px dashed #d6eaf8;border-radius:8px;cursor:pointer;font-size:13px;color:#666;transition:all .2s;text-align:center;flex:1}
+.upload-label:hover{border-color:#2471A3;background:#f0f8ff}
+.upload-label.has-file{border-color:#117A65;background:#e8f5e9;color:#117A65}
+
+.progress{margin-top:24px;display:none}
+.progress h3{font-size:14px;color:#1A3A5C;margin-bottom:14px}
+.steps{display:flex;flex-direction:column;gap:8px}
+.step{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:8px;background:#f8fafc;transition:all .3s}
+.step.active{background:#d6eaf8;box-shadow:0 0 0 1px #2471A3 inset}
+.step.done{background:#e8f5e9}
+.step.error{background:#fdecea}
+.step-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;background:#d6eaf8;color:#1A3A5C}
+.step.active .step-icon{background:#2471A3;color:#fff;animation:pulse 1.2s infinite}
+.step.done .step-icon{background:#117A65;color:#fff}
+.step.error .step-icon{background:#c0392b;color:#fff}
+.step-text{font-size:14px;color:#555}
+.step.active .step-text{color:#1A3A5C;font-weight:600}
+.step.done .step-text{color:#555}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+.spinner{display:none;width:18px;height:18px;border:2px solid #d6eaf8;border-top-color:#2471A3;border-radius:50%;animation:spin .7s linear infinite;margin-left:auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.result{margin-top:20px;text-align:center;display:none}
+.footer{text-align:center;padding:16px;font-size:12px;color:#999;margin-top:auto}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>SmartPPT-AI</h1>
+  <p>多LLM协作 · 智能规划 · 专业排版 · 自动配图</p>
+</div>
+
+<div class="card">
+  <!-- Mode tabs -->
+  <div class="mode-tabs">
+    <div class="mode-tab active" onclick="switchMode('topic')">输入主题</div>
+    <div class="mode-tab" onclick="switchMode('markdown')">粘贴Markdown</div>
+  </div>
+
+  <!-- Topic input -->
+  <div class="input-panel active" id="panel-topic">
+    <div class="input-row">
+      <input type="text" id="topicInput" placeholder="请输入PPT主题，例如：人工智能在医疗领域的应用" autofocus>
+    </div>
+  </div>
+
+  <!-- Markdown input -->
+  <div class="input-panel" id="panel-markdown">
+    <textarea class="markdown-input" id="markdownInput" placeholder="在此粘贴Markdown大纲，例如：&#10;&#10;# 项目概述&#10;## 背景介绍&#10;- 当前市场分析&#10;- 用户需求调研&#10;## 核心功能&#10;### 功能一&#10;### 功能二&#10;## 总结与展望"></textarea>
+    <div class="upload-area" style="margin-top:8px">
+      <label class="upload-label" id="uploadLabel" for="fileUpload">或者点击上传 .md 文件</label>
+      <input type="file" id="fileUpload" accept=".md,.txt,.markdown" onchange="handleFileUpload(this)">
+    </div>
+  </div>
+
+  <!-- Theme selector -->
+  <div class="theme-row">
+    <label>主题色：</label>
+    <select id="themeSelect">
+      <option value="">自动匹配</option>
+    </select>
+  </div>
+
+  <!-- Generate button -->
+  <div style="margin-top:14px">
+    <button class="btn btn-primary" id="generateBtn" onclick="startGenerate()">生成PPT</button>
+  </div>
+
+  <div class="progress" id="progress">
+    <h3>生成进度</h3>
+    <div class="steps">
+      <div class="step" id="s1"><span class="step-icon">1</span><span class="step-text">规划大纲</span><span class="spinner"></span></div>
+      <div class="step" id="s2"><span class="step-icon">2</span><span class="step-text">扩写内容</span><span class="spinner"></span></div>
+      <div class="step" id="s3"><span class="step-icon">3</span><span class="step-text">翻译关键词</span><span class="spinner"></span></div>
+      <div class="step" id="s4"><span class="step-icon">4</span><span class="step-text">获取图片</span><span class="spinner"></span></div>
+      <div class="step" id="s5"><span class="step-icon">5</span><span class="step-text">渲染PPT</span><span class="spinner"></span></div>
+    </div>
+  </div>
+
+  <div class="result" id="result">
+    <p id="resultMsg" style="margin-bottom:14px;font-size:14px;color:#1A3A5C"></p>
+    <button class="btn btn-download" id="downloadBtn" onclick="downloadPPT()">下载PPT文件</button>
+  </div>
+</div>
+
+<div class="footer" id="footer"></div>
+
+<script>
+let taskId = null;
+let currentMode = 'topic';
+
+function $(id){return document.getElementById(id)}
+
+// Load themes from API
+fetch('/api/themes').then(r=>{
+  const ct=r.headers.get('content-type')||'';
+  if(!ct.includes('application/json')) throw new Error('non-JSON');
+  return r.json();
+}).then(data=>{
+  const sel = $('themeSelect');
+  for(const [id, t] of Object.entries(data)){
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = t.name;
+    sel.appendChild(opt);
+  }
+}).catch(()=>{ /* theme load failed, keep default "自动匹配" */ });
+
+function switchMode(mode){
+  currentMode = mode;
+  document.querySelectorAll('.mode-tab').forEach((el,i)=>{
+    el.classList.toggle('active', (i===0&&mode==='topic')||(i===1&&mode==='markdown'));
+  });
+  document.querySelectorAll('.input-panel').forEach(el=>el.classList.remove('active'));
+  $('panel-'+mode).classList.add('active');
+}
+
+function handleFileUpload(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    $('markdownInput').value = e.target.result;
+    $('uploadLabel').textContent = file.name;
+    $('uploadLabel').classList.add('has-file');
+    switchMode('markdown');
+  };
+  reader.readAsText(file);
+}
+
+function startGenerate(){
+  const themeId = $('themeSelect').value || null;
+  let payload = {theme_id: themeId};
+
+  if(currentMode === 'topic'){
+    const topic = $('topicInput').value.trim();
+    if(!topic) return;
+    payload.topic = topic;
+  } else {
+    const md = $('markdownInput').value.trim();
+    if(!md) return;
+    payload.markdown_text = md;
+  }
+
+  $('generateBtn').disabled = true;
+  $('generateBtn').textContent = '生成中...';
+  $('progress').style.display = 'block';
+  $('result').style.display = 'none';
+  $('downloadBtn').style.display = 'none';
+  resetSteps();
+
+  fetch('/api/generate',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload)
+  })
+  .then(r=>{
+    const ct = r.headers.get('content-type')||'';
+    if(!ct.includes('application/json')){
+      return r.text().then(t=>{throw new Error('服务器返回非JSON响应: '+t.substring(0,200))});
+    }
+    return r.json();
+  })
+  .then(data=>{
+    if(data.error){
+      alert(data.error);
+      $('generateBtn').disabled = false;
+      $('generateBtn').textContent = '生成PPT';
+      return;
+    }
+    taskId = data.task_id;
+    listenProgress(taskId);
+  })
+  .catch(e=>{
+    alert('请求失败: '+e.message);
+    $('generateBtn').disabled = false;
+    $('generateBtn').textContent = '生成PPT';
+  });
+}
+
+function resetSteps(){
+  for(let i=1;i<=5;i++){
+    const el = $('s'+i);
+    el.className = 'step';
+    el.querySelector('.spinner').style.display = 'none';
+  }
+}
+
+function listenProgress(taskId){
+  const es = new EventSource('/api/progress/'+taskId);
+  es.onmessage = function(e){
+    let data;
+    try { data = JSON.parse(e.data); } catch(err){ return; }
+    if(data.step === 'heartbeat') return;
+
+    if(data.step === 'done'){
+      es.close();
+      finishAllSteps();
+      $('result').style.display = 'block';
+      $('resultMsg').textContent = data.message;
+      $('downloadBtn').style.display = 'inline-block';
+      $('generateBtn').disabled = false;
+      $('generateBtn').textContent = '生成PPT';
+      return;
+    }
+
+    if(data.step === 'error'){
+      es.close();
+      $('result').style.display = 'block';
+      $('resultMsg').textContent = '生成失败: ' + data.message;
+      $('resultMsg').style.color = '#c0392b';
+      $('generateBtn').disabled = false;
+      $('generateBtn').textContent = '生成PPT';
+      // Mark the currently active step as error
+      var activeStep = document.querySelector('.step.active');
+      if(activeStep) activeStep.className = 'step error';
+      else markError(1);
+      return;
+    }
+
+    if(typeof data.step === 'number' && data.step >= 1 && data.step <= 5){
+      updateStep(data.step, data.message);
+    }
+  };
+  es.onerror = function(){
+    es.close();
+    $('result').style.display = 'block';
+    $('resultMsg').textContent = '连接中断，请检查网络后重试';
+    $('resultMsg').style.color = '#c0392b';
+    $('generateBtn').disabled = false;
+    $('generateBtn').textContent = '生成PPT';
+    var activeStep = document.querySelector('.step.active');
+    if(activeStep) activeStep.className = 'step error';
+  };
+}
+
+function updateStep(n, msg){
+  for(let i=1;i<=5;i++){
+    const el = $('s'+i);
+    if(i < n){
+      el.className = 'step done';
+      el.querySelector('.spinner').style.display = 'none';
+    }else if(i === n){
+      el.className = 'step active';
+      el.querySelector('.spinner').style.display = 'block';
+    }else{
+      el.className = 'step';
+      el.querySelector('.spinner').style.display = 'none';
+    }
+  }
+  if(msg) $('s'+n).querySelector('.step-text').textContent = msg;
+}
+
+function finishAllSteps(){
+  for(let i=1;i<=5;i++){
+    const el = $('s'+i);
+    el.className = 'step done';
+    el.querySelector('.spinner').style.display = 'none';
+  }
+}
+
+function markError(n){
+  for(let i=1;i<=5;i++){
+    if(i === n) $('s'+i).className = 'step error';
+  }
+}
+
+function downloadPPT(){
+  if(taskId) window.open('/api/download/'+taskId, '_blank');
+}
+
+// Dynamic footer year
+$('footer').innerHTML = 'SmartPPT-AI &copy; '+new Date().getFullYear()+' · GLM-4 + Tavily + Unsplash';
+</script>
+
+</body>
+</html>
